@@ -11,33 +11,69 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "~/com
 import { config } from "~/components/providers/WagmiProvider";
 import { PurpleButton } from "~/components/ui/PurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
-import { base, optimism } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import { useSession } from "next-auth/react";
 import { createStore } from "mipd";
 import { Label } from "~/components/ui/label";
 import { PROJECT_TITLE } from "~/lib/constants";
+import { useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
+import { useSearchParams } from "next/navigation";
 
-function ExampleCard() {
+function SendEthCard({ toAddress, isSending, isConfirming, isConfirmed, onSend }: { 
+  toAddress: string;
+  isSending: boolean;
+  isConfirming: boolean;
+  isConfirmed: boolean;
+  onSend: () => void;
+}) {
   return (
     <Card className="border-neutral-200 bg-white">
       <CardHeader>
-        <CardTitle className="text-neutral-900">Welcome to the Frame Template</CardTitle>
+        <CardTitle className="text-neutral-900">Send ETH</CardTitle>
         <CardDescription className="text-neutral-600">
-          This is an example card that you can customize or remove
+          Send ETH to: {truncateAddress(toAddress)}
         </CardDescription>
       </CardHeader>
       <CardContent className="text-neutral-800">
-        <p>
-          Your frame content goes here. The text is intentionally dark to ensure good readability.
-        </p>
+        <div className="flex flex-col gap-4">
+          <PurpleButton 
+            onClick={onSend}
+            disabled={isSending || isConfirming || !toAddress}
+          >
+            {isSending ? 'Sending...' : 
+             isConfirming ? 'Confirming...' : 
+             isConfirmed ? 'Sent!' : 'Send 0.01 ETH'}
+          </PurpleButton>
+          
+          {isConfirmed && (
+            <div className="text-sm text-green-600">
+              Transaction confirmed!
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
 export default function Frame(
-  { title }: { title?: string } = { title: PROJECT_TITLE }
+  { title }: { title?: string } = { title: "EtherShareFlow" }
 ) {
+  const searchParams = useSearchParams();
+  const toAddress = searchParams.get('to') || '';
+  
+  const { 
+    sendTransaction, 
+    isPending: isSending,
+    data: txHash
+  } = useSendTransaction();
+  
+  const { 
+    isLoading: isConfirming, 
+    isSuccess: isConfirmed 
+  } = useWaitForTransactionReceipt({ 
+    hash: txHash 
+  });
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<Context.FrameContext>();
 
@@ -137,7 +173,29 @@ export default function Frame(
     >
       <div className="w-[300px] mx-auto py-2 px-2">
         <h1 className="text-2xl font-bold text-center mb-4 text-neutral-900">{title}</h1>
-        <ExampleCard />
+        {toAddress ? (
+          <SendEthCard
+            toAddress={toAddress}
+            isSending={isSending}
+            isConfirming={isConfirming}
+            isConfirmed={isConfirmed}
+            onSend={() => {
+              sendTransaction({
+                to: toAddress as `0x${string}`,
+                value: BigInt(10000000000000000) // 0.01 ETH
+              });
+            }}
+          />
+        ) : (
+          <Card className="border-neutral-200 bg-white">
+            <CardHeader>
+              <CardTitle className="text-neutral-900">Error</CardTitle>
+            </CardHeader>
+            <CardContent className="text-neutral-800">
+              <p>No recipient address specified</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
